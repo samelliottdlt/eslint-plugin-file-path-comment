@@ -1,98 +1,128 @@
 // eslint/index.js
 
 import {Rule} from 'eslint';
+import {Literal, Node, SourceLocation, TemplateElement} from 'estree';
 
-const rule: Rule.RuleModule = {
+export const CARD_NUMBER_FOUND = 'CARD_NUMBER_FOUND';
+export const CARD_NUMBERS_FOUND = 'CARD_NUMBERS_FOUND';
+const cardNumberRegex = /\d{15,19}/gm;
+
+function luhnCheck(cardNumber: string) {
+  return (
+    cardNumber
+      .split('')
+      .reverse()
+      .map(d => parseInt(d, 10))
+      .reduce((previousValue, currentValue, index) => {
+        if (index % 2 === 1) {
+          currentValue *= 2;
+          if (currentValue > 9) {
+            currentValue = (currentValue % 10) + 1;
+          }
+        }
+        return previousValue + currentValue;
+      }, 0) % 10 === 0
+  );
+}
+
+function checkForCardNumbers(value: string, context: Rule.RuleContext, node?: Node, loc?: SourceLocation) {
+  const matches = value.match(cardNumberRegex);
+  if (matches === null) {
+    return;
+  }
+  const cardNumbers = matches.filter(match => luhnCheck(match));
+  if (cardNumbers.length === 1) {
+    if (node !== undefined) {
+      context.report({
+        messageId: CARD_NUMBER_FOUND,
+        data: {
+          number: cardNumbers[0]
+        },
+        node
+      });
+    }
+    else if (loc !== undefined) {
+      context.report({
+        messageId: CARD_NUMBER_FOUND,
+        data: {
+          number: cardNumbers[0]
+        },
+        loc: {
+          start: loc.start,
+          end: loc.end
+        }
+      });
+    }
+  }
+
+  else if (cardNumbers.length > 1) {
+    if (node !== undefined) {
+      context.report({
+        messageId: CARD_NUMBERS_FOUND,
+        data: {
+          number: matches.join(', ')
+        },
+        node
+      });
+    }
+    else if (loc !== undefined) {
+      context.report({
+        messageId: CARD_NUMBERS_FOUND,
+        data: {
+          number: matches.join(', ')
+        },
+        loc: {
+          start: loc.start,
+          end: loc.end
+        }
+      });
+    }
+  }
+}
+
+const rule = {
     meta: {
-      type: 'suggestion',
+      type: 'problem',
       docs: {
-        description: 'Append and validate that first line of file is a path to the file',
+        description: 'Detects if a luhn passing card number',
         url: 'https://github.com/samelliottdlt/eslint-plugin-file-path-comment'
       },
-      fixable: 'code'
+      messages: {
+        [CARD_NUMBER_FOUND]: `Valid card number: "{{ number }}"`,
+        [CARD_NUMBERS_FOUND]: `Multiple valid card numbers found: "{{ numbers }}"`
+      }
     },
-    create(context) {
-      const firstLine = context.getSourceCode().getLines()[0];
-      const expectedPath = context.getFilename()
-        .split('src')[1]
-        .split('')
-        .filter((element, i) => i !== 0)
-        .join('');
+    create(context: Rule.RuleContext) {
+      const sourceCode = context.getSourceCode();
+      const comments = sourceCode.getAllComments();
 
-      const fixText = `// ${expectedPath}\n\n`;
-
-      if (!firstLine.startsWith('//')) {
-        if (firstLine.startsWith('/*')) {
-          context.report({
-            loc: {
-              start: {
-                line: 0,
-                column: 0
-              },
-              end: {
-                line: 0,
-                column: 1
-              }
-            },
-            message: 'first line cannot be a block comment',
-            fix(fixer: Rule.RuleFixer) {
-              return fixer.insertTextBeforeRange([0, 0], fixText);
-            }
-          });
+      comments.forEach(comment => {
+        if (comment.loc !== undefined && comment.loc !== null) {
+          checkForCardNumbers(comment.value, context, undefined, comment.loc);
         }
-        else {
-          context.report({
-            loc: {
-              start: {
-                line: 0,
-                column: 0
-              },
-              end: {
-                line: 0,
-                column: 1
-              }
-            },
-            message: 'first line is not a comment with the file path',
-            fix(fixer: Rule.RuleFixer) {
-              return fixer.insertTextBeforeRange([0, 0], fixText);
-            }
-          });
+      });
+      return {
+        Literal(node: Literal) {
+          if (node.value === undefined) {
+            return;
+          }
+          if (typeof node.value !== 'string' && typeof node.value !== 'number') {
+            return;
+          }
+          const value = node.value + '';
+          checkForCardNumbers(value, context, node);
+        },
+        TemplateElement(node: TemplateElement) {
+          if (!node.value) return;
+          const value = node.value.cooked + '';
+          checkForCardNumbers(value, context, node);
         }
-      }
-      else {
-        const actualComment = firstLine
-          .split('//')
-          .filter((element, i) => i !== 0)
-          .join('')
-          .trim();
-
-        if (expectedPath !== actualComment) {
-          context.report({
-            loc: {
-              start: {
-                line: 0,
-                column: 0
-              },
-              end: {
-                line: 0,
-                column: 1
-              }
-            },
-            message: 'first line is a comment but is not a path to the file',
-            fix(fixer: Rule.RuleFixer) {
-              return fixer.insertTextBeforeRange([0, 0], fixText);
-            }
-          });
-        }
-      }
-
-
-      return {};
+      };
     }
 };
 
-module.exports = {
+export default {
   rules: {
-    'file-comment-header': rule
+    'no-card-numbers': rule
   }
 };
