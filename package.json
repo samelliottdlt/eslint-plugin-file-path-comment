@@ -1,6 +1,6 @@
 {
   "name": "eslint-plugin-file-path-comment",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "eslint plugin for appending file path as a comment at the top of a file",
   "main": "index.js",
   "scripts": {
@@ -17,10 +17,8 @@
     "url": "https://github.com/samelliottdlt/eslint-plugin-file-path-comment/issues"
   },
   "homepage": "https://github.com/samelliottdlt/eslint-plugin-file-path-comment#readme",
-  "dependencies": {
-    "typescript": "^3.6.3"
-  },
   "devDependencies": {
+    "typescript": "^3.6.3",
     "@types/eslint": "^6.1.1",
     "@types/node": "^12.7.9"
   }
